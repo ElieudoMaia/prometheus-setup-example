@@ -1,0 +1,61 @@
+version: '3'
+
+services:
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    depends_on:
+      - cadvisor
+    ports:
+      - 9090:9090
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    container_name: grafana
+    volumes:
+      - grafana_fullcycle:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    ports:
+      - 8080:8080
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+
+  postgres_exporter:
+    image: bitnami/postgres-exporter:latest
+    container_name: postgres_exporter
+    ports:
+      - 9187:9187
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_HOST=docker.host.internal
+      - POSTGRES_PORT=5432
+      - DATA_SOURCE_NAME=postgresql://postgres:postgres@docker.host.internal:5432/postgres?sslmode=disable
+    extra_hosts:
+      docker.host.internal: host-gateway
+
+  app:
+    build: .
+    container_name: app
+    volumes:
+      - .:/go/src
+    ports:
+      - 8181:8181
+    entrypoint: go run main.go
+
+volumes:
+  grafana_fullcycle:
